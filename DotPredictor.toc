@@ -2,7 +2,7 @@
 ## Title: DotPredictor
 ## Notes: Shows on your target's health bar how much your DoTs are still going to take, and when they'll finish it.
 ## Author: 10k
-## Version: 1.0.1
+## Version: 1.0.2
 ## X-Category: Combat
 ## IconTexture: Interface\Icons\Spell_Shadow_ShadowWordPain
 ## SavedVariables: DotPredictorDB

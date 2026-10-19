@@ -1,5 +1,10 @@
 # Change log — DotPredictor
 
+## 1.0.2
+- Fixed: the overlay didn't show on the target frame in game. Its frames are children of the health bar again (as in 1.0.0) instead of separate frames only anchored to it; on this client a health bar's size is secret and only frames inside it follow it reliably.
+- An empty debuff list no longer wipes the DoTs recorded from your casts (the game may be hiding the debuffs rather than the target having none).
+- `/dp debug` shows the last error the updater hit, if any.
+
 ## 1.0.1
 - **Reads your DoTs from the target's debuffs** when the game allows it, so DoTs applied any way count (Misery's Shadow Word: Pain, focus / mouseover casts), refreshes keep their real (pandemic-extended) time, and dispelled or expired DoTs drop off at once. When debuff timings are hidden it falls back to your casts; a debuff seen for the first time without a cast starts its own timer. An empty debuff list only counts as "no DoTs" once the game has shown it lets the addon read debuffs.
 - Cast fallback: refreshing a running DoT carries over up to 30% of its duration (pandemic) instead of restarting.

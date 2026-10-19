@@ -16,7 +16,7 @@
 -- /dp for commands, or the AddOns tab of the game's options.
 
 local ADDON = "DotPredictor"
-local VERSION = "1.0.1"
+local VERSION = "1.0.2"
 do
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
     if get then
@@ -216,8 +216,8 @@ end
 
 -- Your debuffs on the target. Returns a list of { id, expires, dur } (expires / dur nil when the
 -- game hides them) and whether the scan could see anything at all.
--- An empty list only counts as "none of your DoTs are on it" once the game has shown that it lets the
--- addon read debuffs at all (until then it could just as well be hiding them).
+-- An empty list doesn't count as "none of your DoTs are on it": the game may simply be hiding them, so
+-- then the cast records are used.
 local function ScanAuras()
     local out, readable, hidden = {}, false, false
     if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
@@ -253,7 +253,6 @@ local function ScanAuras()
             end
         end
     end
-    if not readable and not hidden and track.aurasWork and (C_UnitAuras or UnitAura) then readable = true end
     return out, readable
 end
 
@@ -379,8 +378,8 @@ Overlay.__index = Overlay
 
 function Overlay.new(name)
     local o = setmetatable({ name = name }, Overlay)
-    -- Everything sits on its own frame (parented to the screen, only anchored to the bar), so nothing is
-    -- added to the game's own unit frames or nameplates.
+    -- The overlay's frames are children of the health bar they sit on (set in Attach): on this client a
+    -- health bar's size is secret, and only frames inside it reliably follow it.
     o.clip = CreateFrame("Frame", nil, UIParent)
     if o.clip.SetClipsChildren then o.clip:SetClipsChildren(true) end
     o.clip:Hide()
@@ -416,7 +415,9 @@ function Overlay.new(name)
 
     o.text = o.clip:CreateFontString(nil, "OVERLAY")
     o.text:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-    o.ptext = UIParent:CreateFontString(nil, "OVERLAY") -- for text placed outside the bar (the clip would hide it)
+    o.holder = CreateFrame("Frame", nil, UIParent) -- unclipped, for text placed outside the bar
+    o.holder:SetSize(1, 1)
+    o.ptext = o.holder:CreateFontString(nil, "OVERLAY")
     o.ptext:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
     o.ptext:Hide()
     return o
@@ -452,7 +453,11 @@ function Overlay:Attach(hb)
     if not hb then self:Hide() return false end
     local ok = pcall(function()
         local lvl = (hb:GetFrameLevel() or 1) + 3
-        self.clip:SetFrameStrata(hb:GetFrameStrata())
+        self.clip:SetParent(hb)
+        self.lclip:SetParent(hb)
+        self.holder:SetParent(hb)
+        self.holder:ClearAllPoints()
+        self.holder:SetPoint("CENTER", hb, "CENTER", 0, 0)
         self.clip:SetFrameLevel(lvl)
         self.clip:ClearAllPoints()
         self.clip:SetAllPoints(hb)
@@ -462,7 +467,6 @@ function Overlay:Attach(hb)
         self.bar:SetPoint("LEFT", hb, "LEFT", 0, 0)
         self.bar:SetPoint("RIGHT", hb:GetStatusBarTexture(), "RIGHT", 0, 0)
 
-        self.lclip:SetFrameStrata(hb:GetFrameStrata())
         self.lclip:SetFrameLevel(lvl + 1)
         self.lclip:ClearAllPoints()
         self.lclip:SetPoint("TOPLEFT", hb, "TOPLEFT", 0, 0)
@@ -839,6 +843,7 @@ SlashCmdList["DOTPREDICTOR"] = function(msg)
         for _, d in ipairs(track.list) do
             Print(string.format("  %s: %s left over %.1fs (tooltip %s / %.0fs)", SpellName(d.id), Short(d.remaining or 0), d.left, Short(d.total), d.dur))
         end
+        if track.err then Print("  last error: " .. track.err) end
         Print(string.format("  target frame bar: %s   nameplate bar: %s",
             frameOv.hb and "found" or (db.onFrame and "NOT FOUND" or "off"), plateOv.hb and "found" or (db.onPlate and "not found" or "off")))
     elseif cmd == "clear" then
@@ -895,7 +900,8 @@ events:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
             elapsed, prune = elapsed + dt, prune + dt
             if elapsed >= (active and 0.1 or 0.5) then
                 elapsed = 0
-                Update()
+                local ok, err = pcall(Update)
+                if not ok then track.err = tostring(err) end
             end
             if prune >= 10 then prune = 0; Prune() end
         end)
